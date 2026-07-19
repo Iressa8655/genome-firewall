@@ -103,13 +103,17 @@ with tab_predict:
 
         for abx in config.ANTIBIOTICS:
             r = results[abx]
+            brand = config.BRAND_NAMES.get(abx)
             conf = "n/a" if r["probability_resistant"] is None else f"{r['confidence']*100:.0f}%"
             c1, c2, c3 = st.columns([2, 2, 6])
-            c1.markdown(f"**{abx}**")
+            name_md = f"**{abx}**"
+            if brand:
+                name_md += f"<br><span style='color:#6b7280;font-size:0.82em'>{brand}</span>"
+            c1.markdown(name_md, unsafe_allow_html=True)
             c2.markdown(call_badge(r["call"]), unsafe_allow_html=True)
             c3.markdown(f"Confidence {conf} · evidence: *{r['evidence_category'].replace('_', ' ')}*")
 
-            with st.expander(f"Why? — {abx}"):
+            with st.expander(f"Why? — {abx}" + (f" ({brand})" if brand else "")):
                 st.write(r["reason"])
                 panel = evidence.build_evidence_panel(abx, r["driver_genes"], use_llm=use_llm)
                 if panel:

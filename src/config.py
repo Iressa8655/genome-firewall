@@ -23,6 +23,18 @@ ANTIBIOTICS = [
     "Meropenem",
 ]
 
+# Representative brand names shown alongside the generic (INN) names. The generic
+# name stays the primary anchor for safety and international use, the brand is only
+# for quick clinical recognition. Brands vary by country, these are common
+# UK / international examples and are trivial to swap.
+BRAND_NAMES = {
+    "Ampicillin":    "Penbritin",
+    "Ceftriaxone":   "Rocephin",
+    "Ciprofloxacin": "Ciproxin",
+    "Gentamicin":    "Cidomycin",
+    "Meropenem":     "Meronem",
+}
+
 # Acquired resistance genes and resistance-associated mutations we look for.
 # These become the presence/absence feature columns fed to the model.
 RESISTANCE_GENES = [
