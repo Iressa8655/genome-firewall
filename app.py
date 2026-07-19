@@ -11,6 +11,8 @@ Run locally:   streamlit run app.py
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pandas as pd
 import streamlit as st
 
@@ -18,6 +20,8 @@ from src import config, data_sim, evidence, features, metrics
 from train import build
 
 st.set_page_config(page_title="Genome Firewall", page_icon="🧬", layout="wide")
+
+SAMPLE_TSV = str(Path(__file__).parent / "data" / "example" / "amrfinder_example.tsv")
 
 # --- colours for each call ---------------------------------------------------
 CALL_STYLE = {
@@ -144,17 +148,23 @@ st.error(
 
 with st.sidebar:
     st.header("Input genome")
-    mode = st.radio("Choose a source", ["Example genome", "Upload FASTA"])
+    mode = st.radio("Choose a source",
+                    ["Example genome", "Sample lab genome (AMRFinderPlus)", "Upload FASTA"])
 
     use_llm = st.toggle("Plain-language notes via OpenAI", value=False,
                         help="Optional. Needs OPENAI_API_KEY. The LLM only rephrases "
                              "curated facts, it never changes the prediction.")
 
     selected_row = None
+    amr_hits = None  # raw AMRFinderPlus table, shown as the Module 1 output when available
     if mode == "Example genome":
         ids = meta["genome_id"].head(25).tolist()
         genome_id = st.selectbox("Example genome", ids)
         selected_row = feature_row_for_example(X, meta, genome_id)
+    elif mode.startswith("Sample lab genome"):
+        st.caption("Real AMRFinderPlus output for one sequenced isolate, the Module 1 path end to end.")
+        amr_hits, symbols = features.parse_amrfinder_tsv(SAMPLE_TSV)
+        selected_row = features.genes_to_feature_row(symbols)
     else:
         upload = st.file_uploader("Assembled genome (.fasta / .fna)", type=["fasta", "fna", "fa"])
         if upload is not None:
@@ -167,21 +177,38 @@ with st.sidebar:
                 selected_row = features.genes_to_feature_row(genes)
                 st.success(f"AMRFinderPlus detected {len(genes)} elements.")
             else:
-                st.info("AMRFinderPlus is not installed here, so this deployed demo uses "
-                        "an example feature profile instead. Locally, install it from "
-                        "github.com/ncbi/amr for real FASTA annotation.")
-                selected_row = feature_row_for_example(X, meta, meta["genome_id"].iloc[0])
+                st.info("AMRFinderPlus is not installed on this hosted demo, so it is showing the "
+                        "bundled sample AMRFinderPlus output instead. Locally, install it from "
+                        "github.com/ncbi/amr to annotate your own FASTA.")
+                amr_hits, symbols = features.parse_amrfinder_tsv(SAMPLE_TSV)
+                selected_row = features.genes_to_feature_row(symbols)
 
 tab_predict, tab_validation, tab_about = st.tabs(["Prediction", "Model validation", "About & safety"])
 
 # --- Prediction tab ----------------------------------------------------------
 with tab_predict:
     if selected_row is None:
-        st.info("Choose an example genome or upload a FASTA in the sidebar.")
+        st.info("Choose an example genome, the sample lab genome, or upload a FASTA in the sidebar.")
     else:
-        present = [g for g in config.RESISTANCE_GENES if int(selected_row.get(g, 0)) == 1]
-        st.markdown(f"**Resistance genes detected in this genome:** "
-                    f"{', '.join(present) if present else 'none'}")
+        # Module 1, the Genome Reader output (AMRFinderPlus to features).
+        with st.expander("🧬 Module 1 · Genome Reader (AMRFinderPlus)", expanded=amr_hits is not None):
+            if amr_hits is not None and len(amr_hits):
+                show_cols = [c for c in ["Gene symbol", "Class", "Subclass", "Method",
+                                         "% Identity to reference sequence"] if c in amr_hits.columns]
+                st.dataframe(amr_hits[show_cols] if show_cols else amr_hits,
+                             hide_index=True, width="stretch")
+                st.caption("Real AMRFinderPlus output. These determinants become the presence/absence "
+                           "features the model reads.")
+            else:
+                present = [g for g in config.RESISTANCE_GENES if int(selected_row.get(g, 0)) == 1]
+                gene_rows = [{"Gene": g,
+                              "Drug class": evidence.GENE_INFO.get(g, {}).get("class", ""),
+                              "Mechanism": evidence.GENE_INFO.get(g, {}).get("mechanism", "")}
+                             for g in present]
+                st.dataframe(pd.DataFrame(gene_rows) if gene_rows else pd.DataFrame({"Gene": ["none detected"]}),
+                             hide_index=True, width="stretch")
+                st.caption("Resistance determinants found. These become the presence/absence features "
+                           "the model reads.")
 
         results = model.predict_one(selected_row)
 
@@ -232,9 +259,11 @@ with tab_predict:
 
 # --- Validation tab ----------------------------------------------------------
 with tab_validation:
-    st.subheader("Performance on held-out lineages (grouped split)")
-    st.caption("Whole lineages are held out for testing, so the model is scored on genetically "
-               "distinct genomes it never saw. This is the honest test of generalisation.")
+    st.subheader("Performance on held-out clusters (de-duplicated grouped split)")
+    st.caption("Genomes are de-duplicated into sequence-homology clusters (lineages), and whole clusters "
+               "are held out for testing, so identical or near-identical genomes never sit in both train "
+               "and test. This is the honest test of generalisation. On real data, cluster at a chosen "
+               "ANI or Mash threshold and justify it.")
 
     rows = []
     for abx, r in report.items():

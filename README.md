@@ -29,11 +29,17 @@ flowchart TB
 
 | Module | File | What it does |
 |--------|------|--------------|
-| 1. Genome Reader | `src/features.py` | FASTA to resistance gene / mutation features via AMRFinderPlus (with a precomputed fallback) |
+| 1. Genome Reader | `genome_reader.py`, `src/features.py` | FASTA to resistance gene / mutation features via AMRFinderPlus (with a precomputed-TSV fallback) |
 | 2. Predictor | `src/model.py` | One calibrated logistic regression per antibiotic, plus a drug-target gate and a no-call rule |
 | 3. Decision Report | `app.py` | Streamlit app with calibrated confidence, evidence category, evidence panel, and a mandatory lab-testing banner |
 
 Supporting: `src/evidence.py` (evidence lane), `src/metrics.py` (honest scoring), `src/data_sim.py` (synthetic demo data), `train.py` (grouped-split training and evaluation).
+
+### How each module meets its Required deliverable
+
+- **Module 1** requires a documented, repeatable path from a FASTA to features using AMRFinderPlus, plus an output-format specification. Run `python genome_reader.py <fasta-or-amrfinder-tsv>`. It runs AMRFinderPlus when installed, or parses a precomputed AMRFinderPlus TSV (see `data/example/amrfinder_example.tsv`), normalises the gene symbols, and writes a one-row feature CSV. The output format is specified in `genome_reader.py`. In the app, the **Sample lab genome** source shows this AMRFinderPlus output as Module 1.
+- **Module 2** requires predictions for all antibiotics, evaluated after a de-duplication clustering step. `train.py` de-duplicates genomes into sequence-homology clusters (lineages) and holds whole clusters out, so identical or near-identical genomes never sit in both train and test. On real data the threshold is a chosen ANI or Mash distance, to be justified.
+- **Module 3** requires a Streamlit demo returning work / fail / no-call per drug, with calibrated confidence, an evidence category, and a mandatory confirm-with-lab message. That is `app.py`, live at the deployed URL.
 
 ## What makes the predictions trustworthy
 
@@ -49,8 +55,9 @@ Supporting: `src/evidence.py` (evidence lane), `src/metrics.py` (honest scoring)
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-python train.py          # train + evaluate on the grouped split, writes artifacts/
-streamlit run app.py     # launch the demo
+python genome_reader.py data/example/amrfinder_example.tsv   # Module 1: AMRFinderPlus output -> features
+python train.py          # Module 2: train + evaluate on the de-duplicated grouped split
+streamlit run app.py     # Module 3: launch the demo
 ```
 
 The app trains in memory the first time, so `streamlit run app.py` works even before `train.py`.

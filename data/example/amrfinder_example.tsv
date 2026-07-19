@@ -1,0 +1,7 @@
+Protein identifier	Contig id	Start	Stop	Strand	Gene symbol	Sequence name	Scope	Element type	Element subtype	Class	Subclass	Method	% Coverage of reference sequence	% Identity to reference sequence
+NA	contig00003	12043	12924	+	blaKPC-2	carbapenem-hydrolyzing class A beta-lactamase KPC-2	core	AMR	AMR	BETA-LACTAM	CARBAPENEM	EXACTX	100.00	100.00
+NA	contig00007	45120	45996	-	blaCTX-M-15	extended-spectrum class A beta-lactamase CTX-M-15	core	AMR	AMR	BETA-LACTAM	CEPHALOSPORIN	EXACTX	100.00	100.00
+NA	contig00001	88210	89082	+	blaSHV-12	extended-spectrum class A beta-lactamase SHV-12	core	AMR	AMR	BETA-LACTAM	CEPHALOSPORIN	BLASTX	100.00	99.89
+NA	contig00012	3320	3925	+	aac(6')-Ib-cr	aminoglycoside/fluoroquinolone acetyltransferase AAC(6')-Ib-cr	core	AMR	AMR	AMINOGLYCOSIDE	AMINOGLYCOSIDE/QUINOLONE	EXACTX	100.00	100.00
+NA	contig00005	20110	20907	-	blaOXA-48	carbapenem-hydrolyzing class D beta-lactamase OXA-48	core	AMR	AMR	BETA-LACTAM	CARBAPENEM	EXACTX	100.00	100.00
+NA	contig00009	7740	8513	+	armA	16S rRNA (guanine(1405)-N(7))-methyltransferase ArmA	core	AMR	AMR	AMINOGLYCOSIDE	AMINOGLYCOSIDE	EXACTX	100.00	100.00

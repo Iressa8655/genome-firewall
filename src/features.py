@@ -60,6 +60,57 @@ def run_amrfinderplus(fasta_path: str | Path) -> set[str]:
     return set(table[symbol_col].astype(str))
 
 
+# AMRFinderPlus reports gene symbols in its own style (e.g. "aac(6')-Ib-cr",
+# "blaSHV-12"). Normalise them onto the feature columns declared in config.
+_ALIASES = {
+    "aac(6')-ib-cr": "aac6-Ib-cr",
+    "aac(6')-ib": "aac6-Ib",
+    "blakpc-2": "blaKPC-2",
+    "blandm-1": "blaNDM-1",
+    "blaoxa-48": "blaOXA-48",
+    "blactx-m-15": "blaCTX-M-15",
+    "blatem-1": "blaTEM-1",
+    "arma": "armA",
+    "rmtb": "rmtB",
+    "gyra_s83l": "gyrA_S83L",
+}
+
+
+def normalize_gene_symbol(symbol: str) -> str:
+    """Map an AMRFinderPlus gene symbol onto a config feature column."""
+    s = str(symbol).strip()
+    low = s.lower()
+    if low in _ALIASES:
+        return _ALIASES[low]
+    # Family-level rules for the beta-lactamase and quinolone variants.
+    if low.startswith("blashv"):
+        return "blaSHV-ESBL"
+    if low.startswith("blactx-m"):
+        return "blaCTX-M-15"
+    if low.startswith("blakpc"):
+        return "blaKPC-2"
+    if low.startswith("blaoxa-48"):
+        return "blaOXA-48"
+    if low.startswith("blandm"):
+        return "blaNDM-1"
+    if low.startswith("blatem"):
+        return "blaTEM-1"
+    if low.startswith("qnrb"):
+        return "qnrB"
+    return s
+
+
+def parse_amrfinder_tsv(path: str | Path):
+    """Parse an AMRFinderPlus output TSV. Returns (raw_hits_df, gene_symbol_set)."""
+    df = pd.read_csv(path, sep="\t")
+    symbol_col = next(
+        (c for c in df.columns if c.lower() in ("gene symbol", "element symbol")),
+        None,
+    )
+    symbols = set(df[symbol_col].astype(str)) if symbol_col else set()
+    return df, symbols
+
+
 def genes_to_feature_row(present_genes: set[str]) -> pd.Series:
     """Map a set of detected gene symbols to the ordered 0/1 feature vector.
 
@@ -70,8 +121,9 @@ def genes_to_feature_row(present_genes: set[str]) -> pd.Series:
     columns = config.all_feature_columns()
     row = pd.Series(0, index=columns, dtype=int)
     for gene in present_genes:
-        if gene in row.index:
-            row[gene] = 1
+        norm = normalize_gene_symbol(gene)
+        if norm in row.index:
+            row[norm] = 1
     # Core-genome targets: present by default for this species.
     for cols in config.TARGET_GENES.values():
         for tcol in cols:

@@ -91,7 +91,7 @@ def _save(model, report, train_groups, test_groups):
     metrics_out = {
         "species": config.SPECIES,
         "split": {
-            "type": "grouped by lineage (held-out lineages in test)",
+            "type": "de-duplicated by sequence-homology cluster (lineage); whole clusters held out, none in both train and test",
             "train_lineages": sorted(set(int(g) for g in train_groups)),
             "test_lineages": sorted(set(int(g) for g in test_groups)),
         },
