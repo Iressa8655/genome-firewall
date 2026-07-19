@@ -114,10 +114,22 @@ with tab_predict:
                 panel = evidence.build_evidence_panel(abx, r["driver_genes"], use_llm=use_llm)
                 if panel:
                     for item in panel:
-                        st.markdown(
-                            f"- **{item['gene']}** — {item['note']}  \n"
-                            f"  [CARD]({item['card_url']}) · [NCBI]({item['ncbi_url']})"
+                        st.markdown(f"**{item['gene']}**  ·  *{item['mechanism']}*")
+                        st.markdown(item["note"])
+                        st.caption(
+                            f"Mechanism chain:  `{item['gene']}`  →  {item['protein']}  "
+                            f"→  {item['mechanism'].lower()}  →  resistance"
                         )
+                        st.markdown(
+                            f"[CARD]({item['card_url']}) · [NCBI]({item['ncbi_url']}) · "
+                            f"[Literature]({item['pubmed_url']}) · [3D structure]({item['structure_url']})"
+                        )
+                elif r["evidence_category"] == evidence.STATISTICAL:
+                    st.markdown(
+                        "_This call rests on a **statistical association**. No known resistance gene "
+                        "or mechanism was identified, so no biological cause can be claimed. Treat with "
+                        "extra caution and confirm in the lab._"
+                    )
                 else:
                     st.markdown("_No known resistance determinant for this drug in this genome._")
             st.divider()
