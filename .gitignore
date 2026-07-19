@@ -1,0 +1,23 @@
+# Secrets - never commit real credentials
+.env
+.streamlit/secrets.toml
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Build artefacts and trained models
+artifacts/
+*.joblib
+
+# Real / raw data (keep the repo light, document how to fetch it instead)
+data/raw/
+*.fasta
+*.fna
+
+# OS / editor
+.DS_Store
+.ipynb_checkpoints/
