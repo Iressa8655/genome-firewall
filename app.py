@@ -46,6 +46,71 @@ def feature_row_for_example(X: pd.DataFrame, meta: pd.DataFrame, genome_id: str)
     return X.iloc[idx]
 
 
+# Mechanism icons, so the biology reads at a glance.
+MECH_ICON = {
+    "Enzymatic degradation": "✂️",
+    "Target modification": "🔧",
+    "Target protection": "🛡️",
+    "Drug modification": "🏷️",
+}
+
+# The pipeline as a picture (rendered in the About tab).
+ARCH_DOT = """digraph {
+    rankdir=LR; bgcolor="transparent";
+    node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=10, color="#cbd5e1"];
+    genome [label="Genome (FASTA)", fillcolor="#eef2ff"];
+    feat   [label="AMRFinderPlus\\nfeatures", fillcolor="#eef2ff"];
+    model  [label="Calibrated model\\nper antibiotic", fillcolor="#eef2ff"];
+    call   [label="work / fail / no-call\\n+ confidence", fillcolor="#dcfce7"];
+    evid   [label="Evidence\\ngenes, CARD, NCBI", fillcolor="#fef3c7"];
+    report [label="Decision report", fillcolor="#fee2e2"];
+    genome -> feat -> model -> call -> report;
+    evid -> report [style=dashed, label="explains"];
+}"""
+
+
+def antibiogram_figure(results):
+    """A one-glance bar chart, predicted chance each drug fails, coloured by call."""
+    import matplotlib.pyplot as plt
+
+    colour_map = {"likely to work": "#1a7f37", "likely to fail": "#b42318", "no-call": "#b54708"}
+    labels, vals, colours = [], [], []
+    for abx in config.ANTIBIOTICS:
+        r = results[abx]
+        p = r["probability_resistant"]
+        labels.append(abx)
+        vals.append(100.0 if p is None else p * 100.0)
+        colours.append(colour_map.get(r["call"], "#888888"))
+
+    fig, ax = plt.subplots(figsize=(7, 2.7))
+    y = list(range(len(labels)))
+    ax.barh(y, vals, color=colours)
+    ax.set_yticks(y)
+    ax.set_yticklabels(labels, fontsize=9)
+    ax.invert_yaxis()
+    ax.set_xlim(0, 100)
+    ax.axvline(50, color="grey", ls="--", lw=1)
+    ax.set_xlabel("Predicted chance the drug fails (%)", fontsize=8)
+    ax.tick_params(labelsize=8)
+    for i, v in enumerate(vals):
+        ax.text(min(v + 1.5, 96), i, f"{v:.0f}%", va="center", fontsize=8)
+    fig.tight_layout()
+    return fig
+
+
+def mechanism_dot(gene, protein, mechanism):
+    """Gene to protein to mechanism to resistance, as a small left-to-right diagram."""
+    return (
+        'digraph { rankdir=LR; bgcolor="transparent"; '
+        'node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=10, color="#cbd5e1"]; '
+        f'g [label="{gene}\\n(gene)", fillcolor="#eef2ff"]; '
+        f'p [label="{protein}\\n(protein)", fillcolor="#eef2ff"]; '
+        f'm [label="{mechanism}", fillcolor="#fef3c7"]; '
+        'r [label="Resistance", fillcolor="#fee2e2"]; '
+        'g -> p -> m -> r; }'
+    )
+
+
 # ---------------------------------------------------------------------------
 model, X, y, meta, report = get_bundle()
 
@@ -101,6 +166,10 @@ with tab_predict:
 
         results = model.predict_one(selected_row)
 
+        st.pyplot(antibiogram_figure(results))
+        st.caption("Bar shows the predicted chance the drug fails. Green works, red fails, amber no-call.")
+        st.divider()
+
         for abx in config.ANTIBIOTICS:
             r = results[abx]
             brand = config.BRAND_NAMES.get(abx)
@@ -111,19 +180,21 @@ with tab_predict:
                 name_md += f"<br><span style='color:#6b7280;font-size:0.82em'>{brand}</span>"
             c1.markdown(name_md, unsafe_allow_html=True)
             c2.markdown(call_badge(r["call"]), unsafe_allow_html=True)
-            c3.markdown(f"Confidence {conf} · evidence: *{r['evidence_category'].replace('_', ' ')}*")
+            evidence_tag = r["evidence_category"].replace("_", " ")
+            if r["probability_resistant"] is None:
+                c3.caption(f"intrinsic · {evidence_tag}")
+            else:
+                c3.progress(r["confidence"], text=f"confidence {conf} · {evidence_tag}")
 
             with st.expander(f"Why? — {abx}" + (f" ({brand})" if brand else "")):
                 st.write(r["reason"])
                 panel = evidence.build_evidence_panel(abx, r["driver_genes"], use_llm=use_llm)
                 if panel:
                     for item in panel:
-                        st.markdown(f"**{item['gene']}**  ·  *{item['mechanism']}*")
+                        icon = MECH_ICON.get(item["mechanism"], "🧬")
+                        st.markdown(f"**{item['gene']}**  ·  {icon} *{item['mechanism']}*")
                         st.markdown(item["note"])
-                        st.caption(
-                            f"Mechanism chain:  `{item['gene']}`  →  {item['protein']}  "
-                            f"→  {item['mechanism'].lower()}  →  resistance"
-                        )
+                        st.graphviz_chart(mechanism_dot(item["gene"], item["protein"], item["mechanism"]))
                         st.markdown(
                             f"[CARD]({item['card_url']}) · [NCBI]({item['ncbi_url']}) · "
                             f"[Literature]({item['pubmed_url']}) · [3D structure]({item['structure_url']})"
@@ -182,23 +253,16 @@ with tab_validation:
 
 # --- About tab ---------------------------------------------------------------
 with tab_about:
-    st.markdown(
-        """
-### What this is
-Genome Firewall turns a reconstructed bacterial genome into an earlier, evidence-based
-prediction of which antibiotics are likely to work, so a care team can act before slow
-culture results arrive.
+    st.subheader("What this is")
+    st.write("Genome Firewall turns a bacterial genome into an earlier, evidence-based "
+             "prediction of which antibiotics are likely to work, before slow cultures return.")
 
-### How it is built
-1. **Genome Reader** — AMRFinderPlus turns the genome into resistance gene / mutation features.
-2. **Predictor** — one calibrated logistic regression per antibiotic, with a deterministic
-   drug-target gate and a no-call rule.
-3. **Decision Report** — this app, with calibrated confidence and an evidence panel.
+    st.subheader("How it is built")
+    st.graphviz_chart(ARCH_DOT)
+    st.caption("Genome to AMRFinderPlus features to a calibrated model per antibiotic to the "
+               "report. Evidence only explains the call, it never changes it.")
 
-### The safety line
-This system is **strictly defensive**. It predicts and explains resistance that already
-exists to support treatment choices and public-health tracking. It never designs, modifies,
-or optimises an organism. Every report must be confirmed by a trained professional and by
-standard laboratory testing.
-        """
-    )
+    st.subheader("Strictly defensive")
+    st.write("It predicts and explains resistance that already exists. It never designs, "
+             "modifies, or optimises an organism, and every report must be confirmed by a "
+             "trained professional and by standard laboratory testing.")
