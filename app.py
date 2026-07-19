@@ -134,6 +134,33 @@ def render_bucket(col, title, colour, items):
         )
 
 
+def status_pill(call: str) -> str:
+    icon, colour, label = {
+        "likely to work": ("✅", "#1a7f37", "RECOMMENDED"),
+        "no-call":        ("⚠️", "#b54708", "NO-CALL"),
+        "likely to fail": ("⛔", "#b42318", "AVOID"),
+    }.get(call, ("", "#333333", call.upper()))
+    return (f"<span style='background:{colour};color:white;padding:3px 10px;border-radius:12px;"
+            f"font-weight:700;font-size:0.8em'>{icon} {label}</span>")
+
+
+def render_cdss_card(abx, r):
+    """One prescribing-decision-support card: status pill, confidence bar, reason."""
+    brand = config.BRAND_NAMES.get(abx, "")
+    with st.container(border=True):
+        c1, c2 = st.columns([3, 6])
+        name = f"**{abx}**"
+        if brand:
+            name += f"  \n<span style='color:#6b7280;font-size:0.82em'>{brand}</span>"
+        c1.markdown(name, unsafe_allow_html=True)
+        c1.markdown(status_pill(r["call"]), unsafe_allow_html=True)
+        if r["probability_resistant"] is None:
+            c2.caption("Intrinsic, the drug's molecular target is absent.")
+        else:
+            c2.progress(r["confidence"], text=f"confidence {r['confidence']*100:.0f}%")
+        c2.caption(r["reason"])
+
+
 # ---------------------------------------------------------------------------
 model, X, y, meta, report = get_bundle()
 
@@ -216,17 +243,22 @@ with tab_predict:
         st.caption("Bar shows the predicted chance the drug fails. Green works, red fails, amber no-call.")
         st.divider()
 
-        # Triage board, drugs sorted into three colour-coded columns (like a
-        # stewardship tool), so the prescriber sees the shortlist at a glance.
-        buckets = {"work": [], "no-call": [], "fail": []}
-        for abx in config.ANTIBIOTICS:
-            key = {"likely to work": "work", "likely to fail": "fail"}.get(results[abx]["call"], "no-call")
-            buckets[key].append((abx, results[abx]))
-
-        cols = st.columns(3)
-        render_bucket(cols[0], "🟢 Recommended", "#1a7f37", buckets["work"])
-        render_bucket(cols[1], "🟡 No-call, confirm in lab", "#b54708", buckets["no-call"])
-        render_bucket(cols[2], "🔴 Likely to fail", "#b42318", buckets["fail"])
+        # Prescribing decision support, a prioritised colour-coded CDSS-style panel.
+        st.subheader("Prescribing decision support")
+        st.caption("Prioritised by predicted resistance. Always cross-check local and national "
+                   "antimicrobial guidance, and confirm with the laboratory.")
+        group_titles = {
+            "likely to work": "✅ Recommended",
+            "no-call": "⚠️ Needs review · no-call",
+            "likely to fail": "⛔ Avoid · likely to fail",
+        }
+        for call in ("likely to work", "no-call", "likely to fail"):
+            drugs = [(abx, results[abx]) for abx in config.ANTIBIOTICS if results[abx]["call"] == call]
+            if not drugs:
+                continue
+            st.markdown(f"**{group_titles[call]}**")
+            for abx, r in drugs:
+                render_cdss_card(abx, r)
 
         st.divider()
         st.markdown("**Evidence and mechanism** — open a drug for its genes, mechanism and sources.")
@@ -244,8 +276,8 @@ with tab_predict:
                         st.markdown(item["note"])
                         st.graphviz_chart(mechanism_dot(item["gene"], item["protein"], item["mechanism"]))
                         st.markdown(
-                            f"[CARD]({item['card_url']}) · [NCBI]({item['ncbi_url']}) · "
-                            f"[Literature]({item['pubmed_url']}) · [3D structure]({item['structure_url']})"
+                            f"[CARD gene]({item['card_url']}) · [NCBI ref]({item['ncbi_url']}) · "
+                            f"[PubMed literature]({item['pubmed_url']}) · [3D fold]({item['structure_url']})"
                         )
                 elif r["evidence_category"] == evidence.STATISTICAL:
                     st.markdown(
