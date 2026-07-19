@@ -111,6 +111,25 @@ def mechanism_dot(gene, protein, mechanism):
     )
 
 
+def render_bucket(col, title, colour, items):
+    """One colour-coded triage column with the drugs that fall into it."""
+    col.markdown(
+        f"<div style='background:{colour};color:white;padding:6px 10px;border-radius:8px;"
+        f"font-weight:600;text-align:center'>{title}</div>",
+        unsafe_allow_html=True,
+    )
+    if not items:
+        col.caption("—")
+    for abx, r in items:
+        brand = config.BRAND_NAMES.get(abx, "")
+        conf = "" if r["probability_resistant"] is None else f" · {r['confidence']*100:.0f}%"
+        col.markdown(
+            f"<div style='padding:8px 4px 0'><b>{abx}</b>"
+            f"<br><span style='color:#6b7280;font-size:0.82em'>{brand}{conf}</span></div>",
+            unsafe_allow_html=True,
+        )
+
+
 # ---------------------------------------------------------------------------
 model, X, y, meta, report = get_bundle()
 
@@ -170,23 +189,25 @@ with tab_predict:
         st.caption("Bar shows the predicted chance the drug fails. Green works, red fails, amber no-call.")
         st.divider()
 
+        # Triage board, drugs sorted into three colour-coded columns (like a
+        # stewardship tool), so the prescriber sees the shortlist at a glance.
+        buckets = {"work": [], "no-call": [], "fail": []}
+        for abx in config.ANTIBIOTICS:
+            key = {"likely to work": "work", "likely to fail": "fail"}.get(results[abx]["call"], "no-call")
+            buckets[key].append((abx, results[abx]))
+
+        cols = st.columns(3)
+        render_bucket(cols[0], "🟢 Recommended", "#1a7f37", buckets["work"])
+        render_bucket(cols[1], "🟡 No-call, confirm in lab", "#b54708", buckets["no-call"])
+        render_bucket(cols[2], "🔴 Likely to fail", "#b42318", buckets["fail"])
+
+        st.divider()
+        st.markdown("**Evidence and mechanism** — open a drug for its genes, mechanism and sources.")
         for abx in config.ANTIBIOTICS:
             r = results[abx]
             brand = config.BRAND_NAMES.get(abx)
-            conf = "n/a" if r["probability_resistant"] is None else f"{r['confidence']*100:.0f}%"
-            c1, c2, c3 = st.columns([2, 2, 6])
-            name_md = f"**{abx}**"
-            if brand:
-                name_md += f"<br><span style='color:#6b7280;font-size:0.82em'>{brand}</span>"
-            c1.markdown(name_md, unsafe_allow_html=True)
-            c2.markdown(call_badge(r["call"]), unsafe_allow_html=True)
-            evidence_tag = r["evidence_category"].replace("_", " ")
-            if r["probability_resistant"] is None:
-                c3.caption(f"intrinsic · {evidence_tag}")
-            else:
-                c3.progress(r["confidence"], text=f"confidence {conf} · {evidence_tag}")
-
-            with st.expander(f"Why? — {abx}" + (f" ({brand})" if brand else "")):
+            label = abx + (f" ({brand})" if brand else "") + f"  —  {r['call']}"
+            with st.expander(label):
                 st.write(r["reason"])
                 panel = evidence.build_evidence_panel(abx, r["driver_genes"], use_llm=use_llm)
                 if panel:
@@ -201,13 +222,11 @@ with tab_predict:
                         )
                 elif r["evidence_category"] == evidence.STATISTICAL:
                     st.markdown(
-                        "_This call rests on a **statistical association**. No known resistance gene "
-                        "or mechanism was identified, so no biological cause can be claimed. Treat with "
-                        "extra caution and confirm in the lab._"
+                        "_Statistical association only. No known gene or mechanism, so no biological "
+                        "cause is claimed. Confirm in the lab._"
                     )
                 else:
                     st.markdown("_No known resistance determinant for this drug in this genome._")
-            st.divider()
 
         st.warning("Confirm every result with standard laboratory testing before treating.")
 
