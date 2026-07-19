@@ -305,6 +305,7 @@ with tab_validation:
             "Balanced acc": round(m["balanced_accuracy"], 3),
             "Recall (R)": round(m["recall_resistant"], 3),
             "Recall (S)": round(m["recall_susceptible"], 3),
+            "F1": round(m["f1"], 3),
             "AUROC": round(m["auroc"], 3),
             "PR-AUC": round(m["pr_auc"], 3),
             "Brier": round(m["brier"], 3),
@@ -312,6 +313,9 @@ with tab_validation:
             "Acc on committed": round(m["accuracy_on_committed"], 3),
         })
     st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
+    st.caption("These columns are the challenge's success criteria, all on the held-out unseen "
+               "lineages, balanced accuracy, per-class recall, F1, AUROC, PR-AUC, Brier, the no-call "
+               "rate, and the accuracy of the calls the model committed to.")
 
     st.subheader("Calibration (reliability curves)")
     try:
