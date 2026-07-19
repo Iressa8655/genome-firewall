@@ -277,6 +277,7 @@ with tab_validation:
             "PR-AUC": round(m["pr_auc"], 3),
             "Brier": round(m["brier"], 3),
             "No-call rate": round(m["no_call_rate"], 2),
+            "Acc on committed": round(m["accuracy_on_committed"], 3),
         })
     st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
 
@@ -310,7 +311,21 @@ with tab_about:
     st.caption("Genome to AMRFinderPlus features to a calibrated model per antibiotic to the "
                "report. Evidence only explains the call, it never changes it.")
 
-    st.subheader("Strictly defensive")
-    st.write("It predicts and explains resistance that already exists. It never designs, "
-             "modifies, or optimises an organism, and every report must be confirmed by a "
-             "trained professional and by standard laboratory testing.")
+    st.subheader("Coverage")
+    st.write(f"Covers **{config.SPECIES}** and these antibiotics: "
+             f"{', '.join(config.ANTIBIOTICS)}. It does not cover other species or other "
+             "antibiotics, and it returns no-call rather than guessing outside its scope.")
+
+    st.subheader("Responsibility, and how each is addressed")
+    st.markdown(
+        "- **Defensive by construction** — predicts and explains existing resistance only, "
+        "never designs or modifies an organism.\n"
+        "- **Honest generalisation** — scored on held-out, de-duplicated lineage clusters "
+        "(see Model validation), with coverage stated above.\n"
+        "- **Calibrated confidence and a no-call** — probabilities are calibrated on a separate "
+        "slice, and the tool abstains on weak or conflicting evidence.\n"
+        "- **Honest explanations** — a known resistance gene is separated from a merely "
+        "statistical association, and no SHAP score is presented as a biological cause.\n"
+        "- **Human oversight** — decision support only, every result must be confirmed by a "
+        "trained professional and by standard laboratory testing."
+    )

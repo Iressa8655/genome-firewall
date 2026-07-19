@@ -77,3 +77,5 @@ One species (*Klebsiella pneumoniae* in this prototype) and a five-antibiotic pa
 ## Safety and responsibility
 
 Strictly defensive, and scoped to predicting and explaining resistance that already exists in openly available genomes. It supports treatment choices and public-health tracking. It excludes all sample-to-genome processing and any design, synthesis, or enhancement of organisms. The decision report is support for a trained professional and must never make a treatment decision on its own.
+
+The five responsibility requirements are addressed explicitly in the app's **About & safety** tab: defensive by construction, honest generalisation with stated coverage, calibrated confidence and a no-call, honest evidence categories (a known gene versus a statistical association, never SHAP-as-cause), and mandatory human oversight.
