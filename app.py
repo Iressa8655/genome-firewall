@@ -317,6 +317,22 @@ with tab_validation:
                "lineages, balanced accuracy, per-class recall, F1, AUROC, PR-AUC, Brier, the no-call "
                "rate, and the accuracy of the calls the model committed to.")
 
+    st.subheader("Generalisation, broken down by genetic group")
+    st.caption("Balanced accuracy on each held-out lineage separately, so performance is shown per "
+               "group, not just as an average. This is the brief's generalisation criterion.")
+    group_ids = sorted({g for abx in config.ANTIBIOTICS for g in report[abx].get("by_group", {})})
+    if group_ids:
+        grows = []
+        for abx in config.ANTIBIOTICS:
+            bg = report[abx].get("by_group", {})
+            row = {"Antibiotic": abx}
+            for g in group_ids:
+                row[f"Lineage {g}"] = round(bg[g]["balanced_accuracy"], 3) if g in bg else None
+            grows.append(row)
+        st.dataframe(pd.DataFrame(grows), width="stretch", hide_index=True)
+        st.caption("Values are balanced accuracy on each unseen lineage. Similar numbers across "
+                   "groups mean the model generalises rather than memorising one lineage.")
+
     st.subheader("Calibration (reliability curves)")
     try:
         import matplotlib.pyplot as plt

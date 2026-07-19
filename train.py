@@ -53,14 +53,23 @@ def build(save: bool = True):
     model = GenomeFirewallModel().fit(X_train, y_train, g_train)
 
     proba = model.predict_proba(X_test)
+    test_groups_arr = groups[test_idx]
+    unique_test_groups = sorted(int(g) for g in set(test_groups_arr))
 
     report = {}
     for abx in config.ANTIBIOTICS:
         yt = y_test[abx].astype(int).to_numpy()
         yp = proba[abx].to_numpy()
+        # Generalisation broken down by held-out lineage group.
+        by_group = {}
+        for g in unique_test_groups:
+            mask = test_groups_arr == g
+            if mask.sum() >= 5:
+                by_group[g] = metrics.evaluate_probabilities(yt[mask], yp[mask])
         report[abx] = {
             "metrics": metrics.evaluate_probabilities(yt, yp),
             "reliability": metrics.reliability_curve(yt, yp),
+            "by_group": by_group,
         }
 
     _print_summary(report)
